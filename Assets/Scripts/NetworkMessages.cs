@@ -8,7 +8,10 @@ namespace NetworkMessages
         PLAYER_UPDATE,
         SERVER_UPDATE,
         HANDSHAKE,
-        PLAYER_INPUT
+        PLAYER_INPUT,
+        PLAYER_SPAWN,
+        REQUEST_ID,
+        REQUEST_POSITION
     }
 
     [System.Serializable]
@@ -24,13 +27,42 @@ namespace NetworkMessages
             player = new NetworkObjects.NetworkPlayer();
         }
     }
-    
+
+    [System.Serializable]
+    public class RequestIDMsg : NetworkHeader
+    {
+        public string ID;
+        public RequestIDMsg()
+        {      // Constructor
+            cmd = Commands.REQUEST_ID;
+        }
+    }
+
+    [System.Serializable]
+    public class RequestPositionMsg : NetworkHeader
+    {
+        public Vector3 Position;
+        public RequestPositionMsg()
+        {      // Constructor
+            cmd = Commands.REQUEST_POSITION;
+        }
+    }
+
     [System.Serializable]
     public class PlayerUpdateMsg:NetworkHeader{
         public NetworkObjects.NetworkPlayer player;
         public PlayerUpdateMsg(){      // Constructor
             cmd = Commands.PLAYER_UPDATE;
             player = new NetworkObjects.NetworkPlayer();
+        }
+    };
+
+    [System.Serializable]
+    public class PlayerSpawnMsg:NetworkHeader{
+        public Vector3 Position;
+        public string ID;
+        public PlayerSpawnMsg(){      // Constructor
+            cmd = Commands.PLAYER_SPAWN;
         }
     };
 

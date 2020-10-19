@@ -5,6 +5,8 @@ using Unity.Networking.Transport;
 using NetworkMessages;
 using System;
 using System.Text;
+using System.Collections.Generic;
+using UnityEngine.Rendering;
 
 public class NetworkServer : MonoBehaviour
 {
@@ -12,8 +14,11 @@ public class NetworkServer : MonoBehaviour
     public ushort serverPort;
     private NativeList<NetworkConnection> m_Connections;
 
+    List<PlayerSpawnMsg> AllSpawnMsg = new List<PlayerSpawnMsg>();
+
     void Start ()
     {
+        Debug.Log("Initialized.");
         m_Driver = NetworkDriver.Create();
         var endpoint = NetworkEndPoint.AnyIpv4;
         endpoint.Port = serverPort;
@@ -23,6 +28,7 @@ public class NetworkServer : MonoBehaviour
             m_Driver.Listen();
 
         m_Connections = new NativeList<NetworkConnection>(16, Allocator.Persistent);
+        InvokeRepeating("HandShake", 0.0f, 2.0f);
     }
 
     void SendToClient(string message, NetworkConnection c){
@@ -38,13 +44,44 @@ public class NetworkServer : MonoBehaviour
     }
 
     void OnConnect(NetworkConnection c){
+        SendIDToClient(c);
+        SendAllSpawnedPlayers(c);
         m_Connections.Add(c);
-        Debug.Log("Accepted a connection");
+        Debug.Log("Accepted a connection.");
+    }
 
-        //// Example to send a handshake message:
-        // HandshakeMsg m = new HandshakeMsg();
-        // m.player.id = c.InternalId.ToString();
-        // SendToClient(JsonUtility.ToJson(m),c);        
+    void SendIDToClient(NetworkConnection c)
+    {
+        RequestIDMsg m = new RequestIDMsg();
+        m.ID = c.InternalId.ToString();
+        SendToClient(JsonUtility.ToJson(m), c);
+    }
+
+    void SendAllSpawnedPlayers(NetworkConnection c)
+    {
+        foreach (PlayerSpawnMsg msg in AllSpawnMsg)
+        {
+            SendToClient(JsonUtility.ToJson(msg), c);
+        }
+    }
+
+    void HandShake()
+    {
+        foreach (NetworkConnection c in m_Connections)
+        {
+            //// Example to send a handshake message:
+            HandshakeMsg m = new HandshakeMsg();
+            m.player.id = c.InternalId.ToString();
+            SendToClient(JsonUtility.ToJson(m), c);
+        }
+    }
+
+    void SpawnNewPlayer(PlayerSpawnMsg msg)
+    {
+        foreach (NetworkConnection c in m_Connections)
+        {
+            SendToClient(JsonUtility.ToJson(msg), c);
+        }
     }
 
     void OnData(DataStreamReader stream, int i){
@@ -55,19 +92,29 @@ public class NetworkServer : MonoBehaviour
 
         switch(header.cmd){
             case Commands.HANDSHAKE:
-            HandshakeMsg hsMsg = JsonUtility.FromJson<HandshakeMsg>(recMsg);
-            Debug.Log("Handshake message received!");
+                HandshakeMsg hsMsg = JsonUtility.FromJson<HandshakeMsg>(recMsg);
+                //Debug.Log("Handshake message received!");
             break;
+
             case Commands.PLAYER_UPDATE:
-            PlayerUpdateMsg puMsg = JsonUtility.FromJson<PlayerUpdateMsg>(recMsg);
-            Debug.Log("Player update message received!");
+                PlayerUpdateMsg puMsg = JsonUtility.FromJson<PlayerUpdateMsg>(recMsg);
+                Debug.Log("Player update message received!");
             break;
+
             case Commands.SERVER_UPDATE:
-            ServerUpdateMsg suMsg = JsonUtility.FromJson<ServerUpdateMsg>(recMsg);
-            Debug.Log("Server update message received!");
+                ServerUpdateMsg suMsg = JsonUtility.FromJson<ServerUpdateMsg>(recMsg);
+                Debug.Log("Server update message received!");
             break;
+
+            case Commands.PLAYER_SPAWN:
+                PlayerSpawnMsg psMsg = JsonUtility.FromJson<PlayerSpawnMsg>(recMsg);
+                AllSpawnMsg.Add(psMsg);
+                SpawnNewPlayer(psMsg);
+                Debug.Log(psMsg.ID + " has joined the server!");
+                break;
+
             default:
-            Debug.Log("SERVER ERROR: Unrecognized message received!");
+                Debug.Log("SERVER ERROR: Unrecognized message received!");
             break;
         }
     }
@@ -79,6 +126,7 @@ public class NetworkServer : MonoBehaviour
 
     void Update ()
     {
+
         m_Driver.ScheduleUpdate().Complete();
 
         // CleanUpConnections
