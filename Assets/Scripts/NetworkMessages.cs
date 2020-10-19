@@ -6,12 +6,13 @@ namespace NetworkMessages
 {
     public enum Commands{
         PLAYER_UPDATE,
+        PLAYER_DC,
         SERVER_UPDATE,
         HANDSHAKE,
         PLAYER_INPUT,
         PLAYER_SPAWN,
         REQUEST_ID,
-        REQUEST_POSITION
+        UPDATE_STATS
     }
 
     [System.Serializable]
@@ -39,12 +40,14 @@ namespace NetworkMessages
     }
 
     [System.Serializable]
-    public class RequestPositionMsg : NetworkHeader
+    public class UpdateStatsMsg : NetworkHeader
     {
+        public string ID;
         public Vector3 Position;
-        public RequestPositionMsg()
+        public Quaternion Rotation;
+        public UpdateStatsMsg()
         {      // Constructor
-            cmd = Commands.REQUEST_POSITION;
+            cmd = Commands.UPDATE_STATS;
         }
     }
 
@@ -54,6 +57,16 @@ namespace NetworkMessages
         public PlayerUpdateMsg(){      // Constructor
             cmd = Commands.PLAYER_UPDATE;
             player = new NetworkObjects.NetworkPlayer();
+        }
+    };
+
+    [System.Serializable]
+    public class PlayerDCMsg : NetworkHeader
+    {
+        public string PlayerID;
+        public PlayerDCMsg()
+        {      // Constructor
+            cmd = Commands.PLAYER_DC;
         }
     };
 

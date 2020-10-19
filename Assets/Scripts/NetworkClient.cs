@@ -49,6 +49,7 @@ public class NetworkClient : MonoBehaviour
         Debug.Log("Connected to the server.");
         SpawnPlayer();
         InvokeRepeating("HandShake", 0.0f, 2.0f);
+        InvokeRepeating("UpdateStats", 0.0f, 1.0f/30.0f);
     }
 
     void SpawnPlayer()
@@ -60,6 +61,9 @@ public class NetworkClient : MonoBehaviour
         playerGO = Instantiate(PlayerPrefab, pos, new Quaternion());
         playerInfo = playerGO.GetComponent<NetInfo>();
         playerInfo.localID = m_Connection.InternalId.ToString();
+        playerInfo.playerID = PlayerID;
+        playerInfo.ActivateCam();
+        playerGO.AddComponent<PlayerControl>();
         AllPlayersGO.Add(playerGO);
 
         //// Example to send a handshake message:
@@ -74,8 +78,34 @@ public class NetworkClient : MonoBehaviour
         if(msg.ID != PlayerID)
         {
             GameObject otherPlayerGO = Instantiate(PlayerPrefab, msg.Position, new Quaternion());
+            otherPlayerGO.GetComponent<NetInfo>().playerID = msg.ID;
             AllPlayersGO.Add(otherPlayerGO);
         }
+    }
+
+    void UpdateOtherPlayer(UpdateStatsMsg msg)
+    {
+        if (msg.ID != PlayerID)
+        {
+            GameObject Obj = FindPlayerObj(msg.ID);
+            if(Obj)
+            {
+                Obj.transform.position = msg.Position;
+                Obj.transform.rotation = msg.Rotation;
+            }
+        }
+    }
+
+    GameObject FindPlayerObj(string ID)
+    {
+        foreach (GameObject go in AllPlayersGO)
+        {
+            if(go.GetComponent<NetInfo>().playerID == ID)
+            {
+                return go;
+            }
+        }
+        return null;
     }
 
     void OnData(DataStreamReader stream){
@@ -111,6 +141,16 @@ public class NetworkClient : MonoBehaviour
                 SpawnOtherPlayer(psMsg);
             break;
 
+            case Commands.UPDATE_STATS:
+                UpdateStatsMsg usMsg = JsonUtility.FromJson<UpdateStatsMsg>(recMsg);
+                UpdateOtherPlayer(usMsg);
+            break;
+
+            case Commands.PLAYER_DC:
+                PlayerDCMsg pdMsg = JsonUtility.FromJson<PlayerDCMsg>(recMsg);
+                KillPlayer(pdMsg);
+            break;
+
             default:
                 Debug.Log("Unrecognized message received!");
             break;
@@ -140,6 +180,28 @@ public class NetworkClient : MonoBehaviour
         SendToServer(JsonUtility.ToJson(m));
     }
 
+    void KillPlayer(PlayerDCMsg msg)
+    {
+        Destroy(FindPlayerObj(msg.PlayerID));
+    }
+
+    void DC()
+    {
+        //// Example to send a handshake message:
+        PlayerDCMsg m = new PlayerDCMsg();
+        m.PlayerID = PlayerID;
+        SendToServer(JsonUtility.ToJson(m));
+    }
+
+    void UpdateStats()
+    {
+        UpdateStatsMsg m = new UpdateStatsMsg();
+        m.ID = PlayerID;
+        m.Position = playerGO.transform.position;
+        m.Rotation = playerGO.transform.rotation;
+        SendToServer(JsonUtility.ToJson(m));
+    }
+
     void Update()
     {
         m_Driver.ScheduleUpdate().Complete();
@@ -164,10 +226,23 @@ public class NetworkClient : MonoBehaviour
             }
             else if (cmd == NetworkEvent.Type.Disconnect)
             {
+                DC();
                 OnDisconnect();
             }
 
             cmd = m_Connection.PopEvent(m_Driver, out stream);
         }
+
+        if(Input.GetKeyDown(KeyCode.Q))
+        {
+            DC();
+            Invoke("ExitGame", 2.0f);
+        }
+
+    }
+
+    void ExitGame()
+    {
+        Application.Quit();
     }
 }

@@ -7,6 +7,7 @@ using System;
 using System.Text;
 using System.Collections.Generic;
 using UnityEngine.Rendering;
+using UnityEditor;
 
 public class NetworkServer : MonoBehaviour
 {
@@ -84,6 +85,22 @@ public class NetworkServer : MonoBehaviour
         }
     }
 
+    void UpdatePlayerStats(UpdateStatsMsg msg)
+    {
+        foreach (NetworkConnection c in m_Connections)
+        {
+            SendToClient(JsonUtility.ToJson(msg), c);
+        }
+    }
+
+    void DCPlayer(PlayerDCMsg msg)
+    {
+        foreach (NetworkConnection c in m_Connections)
+        {
+            SendToClient(JsonUtility.ToJson(msg), c);
+        }
+    }
+
     void OnData(DataStreamReader stream, int i){
         NativeArray<byte> bytes = new NativeArray<byte>(stream.Length,Allocator.Temp);
         stream.ReadBytes(bytes);
@@ -113,10 +130,34 @@ public class NetworkServer : MonoBehaviour
                 Debug.Log(psMsg.ID + " has joined the server!");
                 break;
 
+            case Commands.UPDATE_STATS:
+                UpdateStatsMsg usMsg = JsonUtility.FromJson<UpdateStatsMsg>(recMsg);
+                UpdatePlayerStats(usMsg);
+            break;
+
+            case Commands.PLAYER_DC:
+                PlayerDCMsg pdMsg = JsonUtility.FromJson<PlayerDCMsg>(recMsg);
+                Debug.Log("Removed Spawn data of: " + pdMsg.PlayerID);
+                AllSpawnMsg.Remove(FindPlayerSpawnMsg(pdMsg.PlayerID));
+                DCPlayer(pdMsg);
+            break;
+
             default:
                 Debug.Log("SERVER ERROR: Unrecognized message received!");
             break;
         }
+    }
+
+    PlayerSpawnMsg FindPlayerSpawnMsg(string ID)
+    {
+        foreach (PlayerSpawnMsg msg in AllSpawnMsg)
+        {
+            if(msg.ID == ID)
+            {
+                return msg;
+            }
+        }
+        return null;
     }
 
     void OnDisconnect(int i){
